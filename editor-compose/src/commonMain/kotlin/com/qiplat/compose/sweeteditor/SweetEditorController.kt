@@ -1,11 +1,20 @@
 package com.qiplat.compose.sweeteditor
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.EditCommand
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Density
 import com.qiplat.compose.sweeteditor.copilot.InlineSuggestionController
 import com.qiplat.compose.sweeteditor.model.decoration.*
 import com.qiplat.compose.sweeteditor.model.foundation.*
@@ -13,16 +22,18 @@ import com.qiplat.compose.sweeteditor.model.snippet.LinkedEditingModel
 import com.qiplat.compose.sweeteditor.model.visual.CursorRect
 import com.qiplat.compose.sweeteditor.model.visual.ScrollMetrics
 import com.qiplat.compose.sweeteditor.runtime.*
-import com.qiplat.compose.sweeteditor.theme.EditorTheme
 import com.qiplat.compose.sweeteditor.theme.LanguageConfiguration
+import com.qiplat.compose.sweeteditor.theme.SweetEditorThemeScheme
+import com.qiplat.compose.sweeteditor.theme.SweetEditorTypography
+import com.qiplat.compose.sweeteditor.theme.parseSweetEditorTheme
 import kotlinx.coroutines.*
 import kotlin.reflect.KClass
 
 class SweetEditorController(
     textMeasurer: EditorTextMeasurer,
-    val state: EditorState = EditorState(),
+    val state: SweetEditorState = SweetEditorState(),
 ) {
-    internal val editorController: EditorController = EditorController(
+    internal val editorController: NativeEditorController = NativeEditorController(
         state = state,
         textMeasurer = textMeasurer,
     )
@@ -30,22 +41,22 @@ class SweetEditorController(
     private val readyCallbacks = mutableListOf<() -> Unit>()
     private var isBound: Boolean = false
     private var isDisposed: Boolean = false
-    private var themeSnapshot: EditorTheme = EditorTheme.dark()
-    private var settingsSnapshot: EditorSettings = EditorSettings()
+    private var themeSnapshot: SweetEditorThemeScheme = SweetEditorDefaults.theme().darkTheme
+    private var settingsSnapshot: SweetEditorSettings = SweetEditorSettings()
     internal val attachedDecorationProviders = mutableStateListOf<DecorationProvider>()
     private val completionProviderManager = CompletionProviderManager()
     private val newLineActionProviderManager = NewLineActionProviderManager()
     private val completionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val eventBus = EditorEventBus()
+    private val eventBus = SweetEditorEventBus()
     private var inlineSuggestionController: InlineSuggestionController? = null
     private val _documentState = mutableStateOf(state.document)
     val documentState: State<EditorDocument?> = _documentState
     private val _totalLineCountState = mutableStateOf(getTotalLineCount())
     val totalLineCountState: State<Int> = _totalLineCountState
     private val _themeState = mutableStateOf(getTheme())
-    val themeState: State<EditorTheme> = _themeState
+    val themeState: State<SweetEditorThemeScheme> = _themeState
     private val _settingsState = mutableStateOf(getSettings())
-    val settingsState: State<EditorSettings> = _settingsState
+    val settingsState: State<SweetEditorSettings> = _settingsState
     private val _languageConfigurationState = mutableStateOf(getLanguageConfiguration())
     val languageConfigurationState: State<LanguageConfiguration?> = _languageConfigurationState
     private val _metadataState = mutableStateOf(getMetadata())
@@ -107,6 +118,8 @@ class SweetEditorController(
     val wordRangeAtCursorState: State<TextRange> = _wordRangeAtCursorState
     private val _wordAtCursorState = mutableStateOf(getWordAtCursor())
     val wordAtCursorState: State<String?> = _wordAtCursorState
+    private val managedTextMeasurer: ManagedEditorTextMeasurer? =
+        editorController.textMeasurer() as? ManagedEditorTextMeasurer
 
     init {
         refreshComposeStates()
@@ -157,17 +170,17 @@ class SweetEditorController(
         dispose()
     }
 
-    fun events(): EditorEventBus = eventBus
+    fun events(): SweetEditorEventBus = eventBus
 
     fun inlineSuggestions(): InlineSuggestionController =
         inlineSuggestionController ?: InlineSuggestionController(this).also {
             inlineSuggestionController = it
         }
 
-    fun <T : EditorEvent> subscribe(
+    fun <T : SweetEditorEvent> subscribe(
         eventType: KClass<T>,
         listener: (T) -> Unit,
-    ): EditorEventSubscription = eventBus.subscribe(eventType, listener)
+    ): SweetEditorEventSubscription = eventBus.subscribe(eventType, listener)
 
     fun loadDocument(document: EditorDocument?) {
         dismissCompletion()
@@ -194,21 +207,33 @@ class SweetEditorController(
 
     fun getTotalLineCount(): Int = state.document?.getLineCount() ?: 0
 
-    fun applyTheme(theme: EditorTheme) {
+    fun applyTheme(theme: SweetEditorThemeScheme) {
         themeSnapshot = theme
         editorController.applyTheme(theme)
         refreshComposeStates()
     }
 
-    fun getTheme(): EditorTheme = themeSnapshot
+    fun applyTheme(
+        themeContent: String?,
+        fallback: SweetEditorThemeScheme = themeSnapshot,
+    ) {
+        applyTheme(
+            parseSweetEditorTheme(
+                themeContent = themeContent,
+                fallback = fallback,
+            ),
+        )
+    }
 
-    fun applySettings(settings: EditorSettings) {
+    fun getTheme(): SweetEditorThemeScheme = themeSnapshot
+
+    fun applySettings(settings: SweetEditorSettings) {
         settingsSnapshot = settings
         editorController.applySettings(settings)
         refreshComposeStates()
     }
 
-    fun getSettings(): EditorSettings = settingsSnapshot
+    fun getSettings(): SweetEditorSettings = settingsSnapshot
 
     fun setLanguageConfiguration(configuration: LanguageConfiguration?) {
         editorController.setLanguageConfiguration(configuration)
@@ -511,6 +536,12 @@ class SweetEditorController(
     fun onFontMetricsChanged() {
         editorController.onFontMetricsChanged()
         refreshComposeStates()
+    }
+
+    internal fun updateTypography(typography: SweetEditorTypography) {
+        if (managedTextMeasurer?.updateTypography(typography) == true) {
+            onFontMetricsChanged()
+        }
     }
 
     fun setFoldArrowMode(mode: FoldArrowMode) {
@@ -816,7 +847,7 @@ class SweetEditorController(
 
     fun tickAnimations(): GestureResult = editorController.tickAnimations().also(::publishGestureEvents)
 
-    fun registerBatchTextStyles(stylesById: Map<Int, TextStyle>) = editorController.registerTextStyles(stylesById)
+    fun registerBatchSpanStyles(stylesById: Map<Int, SpanStyle>) = editorController.registerTextStyles(stylesById)
 
     fun setBatchLineSpans(
         layer: SpanLayer,
@@ -1112,3 +1143,113 @@ class SweetEditorController(
 
 private fun Char.isCompletionWordPart(): Boolean =
     isLetterOrDigit() || this == '_'
+
+private class ManagedEditorTextMeasurer(
+    private val textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    initialDensity: Density,
+) : EditorTextMeasurer {
+    private var scale: Float = 1f
+    private var density: Density = initialDensity
+    private var typography: SweetEditorTypography = SweetEditorTypography()
+
+    fun updateDensity(density: Density) {
+        this.density = density
+    }
+
+    fun updateTypography(typography: SweetEditorTypography): Boolean {
+        if (this.typography == typography) {
+            return false
+        }
+        this.typography = typography
+        return true
+    }
+
+    override fun setScale(scale: Float) {
+        this.scale = scale.coerceAtLeast(0.1f)
+    }
+
+    override fun measureTextWidth(text: String, fontStyle: Int): Float =
+        textMeasurer.measure(
+            text = text,
+            style = measureTextStyle(
+                typography = typography,
+                fontStyleFlags = fontStyle,
+                useInlayHintSize = false,
+                scale = scale,
+            ),
+        ).size.width.toFloat()
+
+    override fun measureInlayHintWidth(text: String): Float =
+        textMeasurer.measure(
+            text = text,
+            style = measureTextStyle(
+                typography = typography,
+                fontStyleFlags = 0,
+                useInlayHintSize = true,
+                scale = scale,
+            ),
+        ).size.width.toFloat()
+
+    override fun measureIconWidth(iconId: Int): Float =
+        with(density) { (typography.iconSize * scale).toPx() }
+
+    override fun getFontMetrics(): FloatArray {
+        val layout = textMeasurer.measure(
+            text = "Hg",
+            style = measureTextStyle(
+                typography = typography,
+                fontStyleFlags = 0,
+                useInlayHintSize = false,
+                scale = scale,
+            ),
+        )
+        val ascent = -layout.firstBaseline
+        val descent = (layout.size.height.toFloat() - layout.firstBaseline).coerceAtLeast(0f)
+        return floatArrayOf(ascent, descent)
+    }
+}
+
+private fun measureTextStyle(
+    typography: SweetEditorTypography,
+    fontStyleFlags: Int,
+    useInlayHintSize: Boolean,
+    scale: Float,
+): TextStyle = TextStyle(
+    fontFamily = typography.fontFamily,
+    fontSize = (if (useInlayHintSize) typography.inlayHintFontSize else typography.fontSize) * scale,
+    fontWeight = if ((fontStyleFlags and 1) != 0) FontWeight.Bold else FontWeight.Normal,
+    fontStyle = if ((fontStyleFlags and 2) != 0) FontStyle.Italic else FontStyle.Normal,
+)
+
+@OptIn(ExperimentalTextApi::class)
+@Composable
+fun rememberSweetEditorController(
+    state: SweetEditorState = rememberSweetEditorState(),
+): SweetEditorController {
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val managedTextMeasurer = remember(textMeasurer) {
+        ManagedEditorTextMeasurer(
+            textMeasurer = textMeasurer,
+            initialDensity = density,
+        )
+    }
+    managedTextMeasurer.updateDensity(density)
+    return remember(state, managedTextMeasurer) {
+        SweetEditorController(
+            textMeasurer = managedTextMeasurer,
+            state = state,
+        )
+    }
+}
+
+@Composable
+fun rememberSweetEditorController(
+    textMeasurer: EditorTextMeasurer,
+    state: SweetEditorState = rememberSweetEditorState(),
+): SweetEditorController = remember(state, textMeasurer) {
+    SweetEditorController(
+        textMeasurer = textMeasurer,
+        state = state,
+    )
+}

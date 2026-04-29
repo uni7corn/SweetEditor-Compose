@@ -1,6 +1,6 @@
 <div align="center">
 
-[English](../README.md) | **简体中文**
+[English](index.md) | **简体中文**
 
 # SweetEditor
 
@@ -41,16 +41,22 @@
 - [x] 只读模式、自动换行模式、自动缩进模式、gutter 显示/吸附等设置
 - [x] 可配置外观系统：主题内容加载、字体配置、当前行渲染模式、行距、折叠箭头模式
 
+## Core Library
+
+本项目使用的原生编辑器 core 基于开源仓库 `OpenSweetEditor`：
+
+- [FinalScave/OpenSweetEditor](https://github.com/FinalScave/OpenSweetEditor)
+
 ## 截图
 
 <div align="center">
   <table>
     <tr>
-      <td align="center"><b>Android</b><br/><img src="snapshot/Screenshot_Android.jpg" alt="Android 截图" width="360"/></td>
-      <td align="center"><b>iOS</b><br/><img src="snapshot/Screenshot_IOS.png" alt="iOS 截图" width="360"/></td>
+      <td align="center"><b>Android</b><br/><img src="./snapshot/Screenshot_Android.jpg" alt="Android 截图" width="360"/></td>
+      <td align="center"><b>iOS</b><br/><img src="./snapshot/Screenshot_IOS.png" alt="iOS 截图" width="360"/></td>
     </tr>
     <tr>
-      <td align="center"><b>Desktop</b><br/><img src="snapshot/Screenshot_Desktop.png" alt="Desktop 截图" width="360"/></td>
+      <td align="center"><b>Desktop</b><br/><img src="./snapshot/Screenshot_Desktop.png" alt="Desktop 截图" width="360"/></td>
       <td align="center"><b>Web</b><br/><img src="" alt="Web 截图" width="360"/></td>
     </tr>
   </table>
@@ -64,7 +70,7 @@
 
 ## 许可证
 
-SweetEditor 使用 [GNU Lesser General Public License v2.1 or later](../LICENSE)（LGPL-2.1+）开源协议，并附带一个额外的 [Static Linking Exception](../EXCEPTION) 作为补充说明。
+SweetEditor 使用 [GNU Lesser General Public License v2.1 or later](https://github.com/lumkit/SweetEditor-Compose/blob/main/LICENSE)（LGPL-2.1+）开源协议，并附带一个额外的 [Static Linking Exception](https://github.com/lumkit/SweetEditor-Compose/blob/main/EXCEPTION) 作为补充说明。
 
 ## Star History
 
